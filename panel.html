@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0d1117;
+            color: #f0f6fc;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #30363d;
+            margin-bottom: 25px;
+        }
+        .header h1 { font-size: 18px; }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .btn-logout { background: #30363d; color: #f0f6fc; }
+        .btn-logout:hover { background: #484f58; }
+        .btn-download { background: #1f6feb; color: white; }
+        .btn-download:hover { background: #388bfd; }
+        .btn-delete { background: #da3633; color: white; }
+        .btn-delete:hover { background: #f85149; }
+
+        .upload-area {
+            border: 2px dashed #30363d;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover, .upload-area.active {
+            border-color: #58a6ff;
+            background: rgba(56, 139, 253, 0.05);
+        }
+        .upload-area p { color: #8b949e; margin-top: 8px; }
+        .upload-area .icon { font-size: 36px; }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #30363d;
+            border-radius: 2px;
+            margin: 15px 0;
+            display: none;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: #58a6ff;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        .status-msg {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+            font-size: 14px;
+        }
+        .status-msg.success { display: block; background: rgba(35,134,54,0.2); color: #3fb950; }
+        .status-msg.error { display: block; background: rgba(218,54,51,0.2); color: #f85149; }
+        .status-msg.info { display: block; background: rgba(56,139,253,0.2); color: #58a6ff; }
+
+        .files-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .files-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #30363d;
+            font-weight: 600;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid #21262d;
+        }
+        .file-item:last-child { border-bottom: none; }
+        .file-info { display: flex; align-items: center; gap: 10px; flex: 1; }
+        .file-info .name { font-size: 14px; word-break: break-all; }
+        .file-info .size { color: #8b949e; font-size: 12px; }
+        .file-actions { display: flex; gap: 8px; }
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: #8b949e;
+        }
+
+        #fileInput { display: none; }
+
+        @media (max-width: 600px) {
+            .file-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .file-actions { width: 100%; }
+            .file-actions .btn { flex: 1; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📁 Panel de Documentos</h1>
+        <button class="btn btn-logout" onclick="logout()">Cerrar sesión</button>
+    </div>
+
+    <div class="upload-area" id="uploadArea">
+        <div class="icon">📤</div>
+        <p>Haz clic o arrastra archivos aquí para subir</p>
+        <input type="file" id="fileInput" multiple>
+    </div>
+
+    <div class="progress-bar" id="progressBar">
+        <div class="fill" id="progressFill"></div>
+    </div>
+
+    <div class="status-msg" id="statusMsg"></div>
+
+    <div class="files-section">
+        <div class="files-header">📂 Archivos almacenados</div>
+        <div id="fileList">
+            <div class="empty-state">Cargando...</div>
+        </div>
+    </div>
+
+    <script>
+        // ============ CONFIGURACIÓN ============
+        const CONFIG = {
+            owner: 'TU_USUARIO_GITHUB',      // Tu usuario de GitHub
+            repo: 'almacen',                   // Nombre del repo privado
+            branch: 'main',
+            path: 'documentos'                 // Carpeta dentro del repo
+        };
+
+        // Token de GitHub (Personal Access Token)
+        // OPCIÓN SIMPLE: pégalo directamente aquí
+        const GITHUB_TOKEN = 'TU_TOKEN_AQUI';
+        // =======================================
+
+        // Verificar autenticación
+        if (sessionStorage.getItem('authenticated') !== 'true') {
+            window.location.href = 'index.html';
+        }
+
+        const API_BASE = `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${CONFIG.path}`;
+
+        function getHeaders() {
+            return {
+                'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            };
+        }
+
+        // ---- SUBIDA DE ARCHIVOS ----
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('active'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        async function handleFiles(files) {
+            for (let file of files) {
+                await uploadFile(file);
+            }
+            loadFiles();
+        }
+
+        async function uploadFile(file) {
+            showStatus(`Subiendo: ${file.name}...`, 'info');
+            showProgress(true);
+
+            try {
+                // Leer archivo como Base64
+                const base64 = await fileToBase64(file);
+                
+                // Nombre único para evitar colisiones
+                const timestamp = Date.now();
+                const fileName = `${timestamp}_${file.name}`;
+
+                const response = await fetch(`${API_BASE}/${fileName}`, {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        message: `Upload: ${file.name}`,
+                        content: base64,
+                        branch: CONFIG.branch
+                    })
+                });
+
+                if (response.ok) {
+                    showStatus(`✅ "${file.name}" subido correctamente`, 'success');
+                } else {
+                    const err = await response.json();
+                    throw new Error(err.message);
+                }
+            } catch (error) {
+                showStatus(`❌ Error subiendo "${file.name}": ${error.message}`, 'error');
+            }
+            showProgress(false);
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64 = reader.result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ---- LISTADO DE ARCHIVOS ----
+        async function loadFiles() {
+            const container = document.getElementById('fileList');
+            try {
+                const response = await fetch(API_BASE, {
+                    headers: getHeaders()
+                });
+
+                if (response.status === 404) {
+                    container.innerHTML = '<div class="empty-state">📭 No hay archivos todavía</div>';
+                    return;
+                }
+
+                const files = await response.json();
+
+                if (!Array.isArray(files) || files.length === 0) {
+                    container.innerHTML = '<div class="empty-state">📭 No hay archivos todavía</div>';
+                    return;
+                }
+
+                container.innerHTML = files
+                    .filter(f => f.type === 'file')
+                    .map(f => {
+                        const displayName = f.name.replace(/^\d+_/, ''); // Quitar timestamp
+                        const size = formatSize(f.size);
+                        return `
+                            <div class="file-item">
+                                <div class="file-info">
+                                    <span class="name">📄 ${displayName}</span>
+                                    <span class="size">(${size})</span>
+                                </div>
+                                <div class="file-actions">
+                                    <button class="btn btn-download" onclick="downloadFile('${f.path}', '${displayName}', '${f.sha}')">⬇ Descargar</button>
+                                    <button class="btn btn-delete" onclick="deleteFile('${f.path}', '${f.sha}', '${displayName}')">🗑 Eliminar</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+            } catch (error) {
+                container.innerHTML = `<div class="empty-state">❌ Error cargando archivos: ${error.message}</div>`;
+            }
+        }
+
+        // ---- DESCARGA ----
+        async function downloadFile(path, fileName, sha) {
+            showStatus(`Descargando: ${fileName}...`, 'info');
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${sha}`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                // Decodificar Base64
+                const byteCharacters = atob(data.content);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray]);
+
+                // Descargar
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                showStatus(`✅ "${fileName}" descargado`, 'success');
+            } catch (error) {
+                showStatus(`❌ Error descargando: ${error.message}`, 'error');
+            }
+        }
+
+        // ---- ELIMINACIÓN ----
+        async function deleteFile(path, sha, fileName) {
+            if (!confirm(`¿Eliminar "${fileName}"?`)) return;
+
+            try {
+                const response = await fetch(
+                    `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${path}`, {
+                    method: 'DELETE',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        message: `Delete: ${fileName}`,
+                        sha: sha,
+                        branch: CONFIG.branch
+                    })
+                });
+
+                if (response.ok) {
+                    showStatus(`✅ "${fileName}" eliminado`, 'success');
+                    loadFiles();
+                } else {
+                    throw new Error('No se pudo eliminar');
+                }
+            } catch (error) {
+                showStatus(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        // ---- UTILIDADES ----
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+            return (bytes / 1073741824).toFixed(1) + ' GB';
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('statusMsg');
+            el.textContent = msg;
+            el.className = 'status-msg ' + type;
+            if (type !== 'info') {
+                setTimeout(() => { el.className = 'status-msg'; }, 5000);
+            }
+        }
+
+        function showProgress(show) {
+            document.getElementById('progressBar').style.display = show ? 'block' : 'none';
+            if (show) document.getElementById('progressFill').style.width = '100%';
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        // Cargar archivos al inicio
+        loadFiles();
+    </script>
+</body>
+</html>
