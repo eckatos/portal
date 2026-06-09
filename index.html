@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0d1117;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .login-container {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 40px;
+            width: 340px;
+        }
+        .login-container h1 {
+            color: #f0f6fc;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 20px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            color: #8b949e;
+            font-size: 13px;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #f0f6fc;
+            font-size: 14px;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #58a6ff;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-login:hover { background: #2ea043; }
+        .error-msg {
+            color: #f85149;
+            text-align: center;
+            font-size: 13px;
+            margin-top: 12px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>🔐 Acceso Restringido</h1>
+        <form id="loginForm">
+            <div class="form-group">
+                <label>Usuario</label>
+                <input type="text" id="username" autocomplete="off" required>
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="password" required>
+            </div>
+            <button type="submit" class="btn-login">Acceder</button>
+            <p class="error-msg" id="errorMsg">Credenciales incorrectas</p>
+        </form>
+    </div>
+
+    <script>
+        /*
+         * CONFIGURACIÓN DE USUARIOS
+         * Para generar el hash de tu contraseña:
+         * 1. Abre la consola del navegador (F12)
+         * 2. Ejecuta: 
+         *    crypto.subtle.digest('SHA-256', new TextEncoder().encode('tuUsuario:tuContraseña')).then(h => console.log(Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('')))
+         * 3. Copia el resultado y ponlo abajo
+         */
+        const USERS = {
+            // 'nombreUsuario': 'hash_sha256_de_usuario:contraseña'
+            'admin': 'REEMPLAZA_CON_TU_HASH'
+        };
+
+        // Token de GitHub (se cifra con la contraseña del usuario)
+        // Lo configuraremos después
+        const ENCRYPTED_TOKEN = 'REEMPLAZA_DESPUES';
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value;
+
+            const hashBuffer = await crypto.subtle.digest('SHA-256', 
+                new TextEncoder().encode(user + ':' + pass));
+            const hash = Array.from(new Uint8Array(hashBuffer))
+                .map(b => b.toString(16).padStart(2, '0')).join('');
+
+            if (USERS[user] && USERS[user] === hash) {
+                // Login correcto - guardar en sesión
+                sessionStorage.setItem('authenticated', 'true');
+                sessionStorage.setItem('user', user);
+                sessionStorage.setItem('ghToken', pass); // Se usa para descifrar el token
+                window.location.href = 'panel.html';
+            } else {
+                document.getElementById('errorMsg').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('errorMsg').style.display = 'none';
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
