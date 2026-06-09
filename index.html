@@ -89,44 +89,31 @@
     </div>
 
     <script>
-        /*
-         * CONFIGURACIÓN DE USUARIOS
-         * Para generar el hash de tu contraseña:
-         * 1. Abre la consola del navegador (F12)
-         * 2. Ejecuta: 
-         *    crypto.subtle.digest('SHA-256', new TextEncoder().encode('tuUsuario:tuContraseña')).then(h => console.log(Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('')))
-         * 3. Copia el resultado y ponlo abajo
-         */
-        const USERS = {
-    'eckatos': '7fef947fd63f1958ea13ea8132ae067bd066b769d40a8a5ed66101e1f50cf509'
-        };
-        // Token de GitHub (se cifra con la contraseña del usuario)
-        // Lo configuraremos después
-        const ENCRYPTED_TOKEN = 'REEMPLAZA_DESPUES';
+    const USERS = {
+        'eckatos': '7fef947fd63f1958ea13ea8132ae067bd066b769d40a8a5ed66101e1f50cf509'
+    };
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const user = document.getElementById('username').value.trim();
-            const pass = document.getElementById('password').value;
+    document.getElementById('loginForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const user = document.getElementById('username').value.trim();
+        const pass = document.getElementById('password').value;
 
-            const hashBuffer = await crypto.subtle.digest('SHA-256', 
-                new TextEncoder().encode(user + ':' + pass));
-            const hash = Array.from(new Uint8Array(hashBuffer))
-                .map(b => b.toString(16).padStart(2, '0')).join('');
+        const hashBuffer = await crypto.subtle.digest('SHA-256',
+            new TextEncoder().encode(user + ':' + pass));
+        const hash = Array.from(new Uint8Array(hashBuffer))
+            .map(b => b.toString(16).padStart(2, '0')).join('');
 
-            if (USERS[user] && USERS[user] === hash) {
-                // Login correcto - guardar en sesión
-                sessionStorage.setItem('authenticated', 'true');
-                sessionStorage.setItem('user', user);
-                sessionStorage.setItem('ghToken', pass); // Se usa para descifrar el token
-                window.location.href = 'panel.html';
-            } else {
-                document.getElementById('errorMsg').style.display = 'block';
-                setTimeout(() => {
-                    document.getElementById('errorMsg').style.display = 'none';
-                }, 3000);
-            }
-        });
-    </script>
+        if (USERS[user] && USERS[user] === hash) {
+            sessionStorage.setItem('authenticated', 'true');
+            sessionStorage.setItem('user', user);
+            window.location.href = 'panel.html';
+        } else {
+            document.getElementById('errorMsg').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('errorMsg').style.display = 'none';
+            }, 3000);
+        }
+    };
+</script>
 </body>
 </html>
